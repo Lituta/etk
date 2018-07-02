@@ -72,7 +72,7 @@ class DefaultDocumentSelector(DocumentSelector):
             return False
 
         if datasets is not None:
-            res = self.check_content(json_doc, "$.datasets", datasets, False)
+            res = self.check_content(json_doc, "$.dataset", datasets, False)
             if not res:
                 return False
 
@@ -93,6 +93,7 @@ class DefaultDocumentSelector(DocumentSelector):
 
         if json_paths_regex is not None:
             rw_json_paths_regex = re.compile('|'.join(json_paths_regex))
+            # TODO AMandeep: what is going at the line below
             res = self.check_json_path_codition(json_doc, rw_json_paths, rw_json_paths_regex)
             if not res:
                 return False

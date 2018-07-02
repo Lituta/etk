@@ -24,6 +24,11 @@ ETK is open-source software, released under the MIT license.
 * Scalable execution and management of extraction pipelines
 * Automatic provenance recording
 
+# Releases
+
+- [Source code](https://github.com/usc-isi-i2/etk/releases)
+- [Docker images](https://hub.docker.com/r/uscisii2/etk/tags/)
+
 ## Installation
 
 <table>
@@ -36,6 +41,7 @@ Clone or fork this repository, open a terminal window and in the directory where
 conda-env create .
 source activate etk2_env
 python -m spacy download en_core_web_sm
+python -m spacy download en_core_web_lg
 ```
 
 ## Run Tests
@@ -55,3 +61,4 @@ Run container
 Mount local volume for test
 
 `docker run -it -v $(pwd):/app/etk etk:dev /bin/bash`
+

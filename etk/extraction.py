@@ -1,6 +1,8 @@
 from spacy.tokens import Token
 from etk.tokenizer import Tokenizer
 from typing import List, Any, Dict
+import numbers
+import datetime
 import re
 
 
@@ -19,7 +21,7 @@ class ExtractableBase(object):
         """
         return self._value
 
-    def get_string(self, joiner: str =" ") -> str:
+    def get_string(self, joiner: str = " ") -> str:
         """
         Args:
             joiner(str): if the value of an extractable is not a string, join the elements
@@ -34,6 +36,12 @@ class ExtractableBase(object):
             return self.list2str(self._value, joiner)
         elif isinstance(self._value, dict):
             return self.dict2str(self._value, joiner)
+        elif isinstance(self.value, numbers.Number):
+            return str(self.value)
+        elif isinstance(self._value, datetime.date):
+            return self._value.strftime("%Y-%m-%d")
+        elif isinstance(self._value, datetime.datetime):
+            return self._value.isoformat()
         else:
             return self._value
 
@@ -92,7 +100,7 @@ class Extractable(ExtractableBase):
         self._value = value
         self.prov_id = prov_id
 
-    def get_tokens(self, tokenizer: Tokenizer, keep_multi_space: bool=True) -> List[Token]:
+    def get_tokens(self, tokenizer: Tokenizer, keep_multi_space: bool = True) -> List[Token]:
         """
         Tokenize this Extractable.
 
@@ -122,10 +130,10 @@ class Extractable(ExtractableBase):
     @property
     def prov_id(self):
         return self.__prov_id
-        
+
     @prov_id.setter
     def prov_id(self, prov_id):
-       self.__prov_id = prov_id
+        self.__prov_id = prov_id
 
 
 class Extraction(Extractable):
@@ -172,7 +180,10 @@ class Extraction(Extractable):
         self._value = value
 
     def __str__(self):
-        return str(self.__class__) + ": " + str(self.__dict__)
+        return str(self.__class__) + ", value: " + str(self._value)
+
+    def __repr__(self):
+        return str(self.__class__) + ", value: " + str(self._value)
 
     @property
     def value(self) -> Dict or str:

@@ -12,3 +12,4 @@ class FieldType(Enum):
     NUMBER = auto()
     LOCATION = auto()
     DATE = auto()
+    KG_ID = auto()

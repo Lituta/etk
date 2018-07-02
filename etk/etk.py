@@ -1,23 +1,45 @@
+import platform
+import tempfile
 from typing import List, Dict
-import spacy, copy, json, os, jsonpath_ng, importlib, logging
+import spacy, copy, json, os, jsonpath_ng, importlib, logging, sys
 from etk.tokenizer import Tokenizer
 from etk.document import Document
 from etk.etk_exceptions import InvalidJsonPathError
 from etk.etk_module import ETKModule
 from etk.etk_exceptions import ErrorPolicy, NotGetETKModuleError
+from etk.utilities import Utility
+
+TEMP_DIR = '/tmp' if platform.system() == 'Darwin' else tempfile.gettempdir()
 
 
 class ETK(object):
     def __init__(self, kg_schema=None, modules=None, extract_error_policy="process", logger=None,
-                 logger_path='/tmp/etk.log'):
+                 logger_path=os.path.join(TEMP_DIR, 'etk.log')):
+        if logger:
+            self.logger = logger
+        else:
+            logging.basicConfig(
+                level=logging.DEBUG,
+                format='%(asctime)s %(name)-6s %(levelname)s %(message)s',
+                datefmt='%m-%d %H:%M',
+                filename=logger_path,
+                filemode='w'
+            )
+            self.logger = logging.getLogger('ETK')
+
         self.parser = jsonpath_ng.parse
         self.default_nlp = spacy.load('en_core_web_sm')
         self.default_tokenizer = Tokenizer(copy.deepcopy(self.default_nlp))
         self.parsed = dict()
         self.kg_schema = kg_schema
+        self.em_lst = list()
         if modules:
             if type(modules) == list:
-                self.em_lst = self.load_ems(modules)
+                for module in modules:
+                    if isinstance(module, str):
+                        self.em_lst.extend(self.load_ems(modules))
+                    elif issubclass(module, ETKModule):
+                        self.em_lst.append(module(self))
             elif issubclass(modules, ETKModule):
                 self.em_lst = [modules(self)]
             else:
@@ -31,18 +53,6 @@ class ETK(object):
             self.error_policy = ErrorPolicy.RAISE
         else:
             self.error_policy = ErrorPolicy.PROCESS
-
-        if logger:
-            self.logger = logger
-        else:
-            logging.basicConfig(
-                level=logging.DEBUG,
-                format='%(asctime)s %(name)-6s %(levelname)s %(message)s',
-                datefmt='%m-%d %H:%M',
-                filename=logger_path,
-                filemode='w'
-            )
-            self.logger = logging.getLogger('ETK')
 
     def create_document(self, doc: Dict, mime_type: str = None, url: str = "http://ex.com/123",
                         doc_id=None) -> Document:
@@ -61,7 +71,7 @@ class ETK(object):
         return Document(self, doc, mime_type, url, doc_id=doc_id)
 
     def parse_json_path(self, jsonpath):
-    
+
         """
         Parse a jsonpath
 
@@ -71,7 +81,6 @@ class ETK(object):
         Returns: a parsed json path
 
         """
-
         if jsonpath not in self.parsed:
             try:
                 self.parsed[jsonpath] = self.parser(jsonpath)
@@ -81,7 +90,7 @@ class ETK(object):
 
         return self.parsed[jsonpath]
 
-    def process_ems(self, doc: Document):
+    def process_ems(self, doc: Document) -> List[Document]:
         """
         Factory method to wrap input JSON docs in an ETK Document object.
 
@@ -91,26 +100,43 @@ class ETK(object):
         Returns: a Document object and a KnowledgeGraph object
 
         """
-        for a_em in self.em_lst:
-            try:
-                if a_em.document_selector(doc):
-                    self.log(" processing with " + str(type(a_em)) + ". Process", "info", doc.doc_id, doc.url)
-                    a_em.process_document(doc)
-            except Exception as e:
-                if self.error_policy == ErrorPolicy.THROW_EXTRACTION:
-                    self.log(str(e) + " processing with " + str(type(a_em)) + ". Continue", "error", doc.doc_id,
-                             doc.url)
-                    continue
-                if self.error_policy == ErrorPolicy.THROW_DOCUMENT:
-                    self.log(str(e) + " processing with " + str(type(a_em)) + ". Throw doc", "error", doc.doc_id,
-                             doc.url)
-                    return None
-                if self.error_policy == ErrorPolicy.RAISE:
-                    self.log(str(e) + " processing with " + str(type(a_em)), "error", doc.doc_id, doc.url)
-                    raise e
+        new_docs = list()
 
+        for a_em in self.em_lst:
+            if a_em.document_selector(doc):
+                self.log(" processing with " + str(type(a_em)) + ". Process", "info", doc.doc_id, doc.url)
+                fresh_docs = a_em.process_document(doc)
+                # Allow ETKModules to return nothing in lieu of an empty list (people forget to return empty list)
+                if fresh_docs:
+                    new_docs.extend(fresh_docs)
+            # try:
+            #     if a_em.document_selector(doc):
+            #         self.log(" processing with " + str(type(a_em)) + ". Process", "info", doc.doc_id, doc.url)
+            #         new_docs.extend(a_em.process_document(doc))
+            # except Exception as e:
+            #     if self.error_policy == ErrorPolicy.THROW_EXTRACTION:
+            #         self.log(str(e) + " processing with " + str(type(a_em)) + ". Continue", "error", doc.doc_id,
+            #                  doc.url)
+            #         continue
+            #     if self.error_policy == ErrorPolicy.THROW_DOCUMENT:
+            #         self.log(str(e) + " processing with " + str(type(a_em)) + ". Throw doc", "error", doc.doc_id,
+            #                  doc.url)
+            #         return list()
+            #     if self.error_policy == ErrorPolicy.RAISE:
+            #         self.log(str(e) + " processing with " + str(type(a_em)), "error", doc.doc_id, doc.url)
+            #         raise e
+
+        # Do house cleaning.
         doc.insert_kg_into_cdr()
-        return doc, doc.kg
+        Utility.make_json_serializable(doc.cdr_document)
+        if not doc.doc_id:
+            doc.doc_id = Utility.create_doc_id_from_json(doc.cdr_document)
+
+        results = [doc]
+        for new_doc in new_docs:
+            results.extend(self.process_ems(new_doc))
+
+        return results
 
     @staticmethod
     def load_glossary(file_path: str, read_json=False) -> List[str]:
@@ -154,11 +180,11 @@ class ETK(object):
         if modules_paths:
             for modules_path in modules_paths:
                 em_lst = []
-                modules_path = modules_path.strip(".").strip("/")
                 try:
                     for file_name in os.listdir(modules_path):
                         if file_name.startswith("em_") and file_name.endswith(".py"):
-                            this_module = importlib.import_module(modules_path + "." + file_name[:-3])
+                            sys.path.append(modules_path)  # append module dir path
+                            this_module = importlib.import_module(file_name[:-3])
                             for em in self.classes_in_module(this_module):
                                 em_lst.append(em(self))
                 except:
@@ -166,21 +192,19 @@ class ETK(object):
                     raise NotGetETKModuleError("Wrong file path for ETK modules")
                 all_em_lst += em_lst
 
-
         try:
             all_em_lst = self.topological_sort(all_em_lst)
         except Exception:
             self.log("Topological sort for ETK modules fails", "error")
             raise NotGetETKModuleError("Topological sort for ETK modules fails")
 
-        if not all_em_lst:
-            self.log("No ETK module in " + str(modules_paths), "error")
-            raise NotGetETKModuleError("No ETK module in dir, module file should start with em_, end with .py")
+        # if not all_em_lst:
+        #     self.log("No ETK module in " + str(modules_paths), "error")
+        #     raise NotGetETKModuleError("No ETK module in dir, module file should start with em_, end with .py")
         return all_em_lst
 
-
     @staticmethod
-    def topological_sort(lst: List[ETKModule]) -> List[ETKModule]:
+    def topological_sort(etk_module_list: List[ETKModule]) -> List[ETKModule]:
         """
         Return topological order of ems
 
@@ -191,7 +215,7 @@ class ETK(object):
 
         """
         "TODO"
-        return lst
+        return etk_module_list
 
     @staticmethod
     def classes_in_module(module) -> List:

@@ -1,34 +1,23 @@
 from etk.extraction import Extractable
-"TODO: Why import OriginRecord but not used, probably you want to extend from this class instead of Extractable?"
-from etk.origin_record import OriginRecord
 from typing import List, Dict
+from etk.origin_record import OriginRecord
 
 
 class StorageProvenanceRecord(Extractable):
     """
-    An individual segment in a document.
-    For now, it supports recording of JSONPath results, but we should consider extending
-    to record segments within a text doc, e.g., by start and end char, or segments within
-    a token list with start and end tokens.
+    An individual storage provenance record of a storage of set of a set of extraction results from a document.
     """
 
-    def __init__(self, json_path: str, attribute: str, extraction_provenances: List[int] = None,
+    def __init__(self, id, json_path: str, attribute: str, extraction_provenances,
                  _document=None) -> None:
 
         Extractable.__init__(self)
+        self.id = id
         self.field = None
         self._destination = json_path + '.' + attribute
-        self.provenance_record_id = extraction_provenances # will be assigned later_provenances
+        self.extraction_provenances = extraction_provenances  # will be assigned later_provenances
         self._document = _document
         self.doc_id = None
-
-    @property
-    def destination(self) -> str:
-        """
-        Returns: The full path of a JSONPath match
-        """
-        "TODO: What is json_path here, when it this attribute get created"
-        return self.json_path
 
     @property
     def document(self):
@@ -43,3 +32,15 @@ class StorageProvenanceRecord(Extractable):
         Returns: the parent Document
         """
         return self._destination
+
+    def get_origins(self, value):
+
+        prov_ids = self.extraction_provenances
+        if value in prov_ids:
+            extraction_prov_id = prov_ids[value]
+            extraction_prov = self._document.provenances[extraction_prov_id]
+            origins = extraction_prov.get_origins(value)
+            return origins
+        else:
+            originRecord = OriginRecord(self._destination, None, None, self._document)
+            return [originRecord]

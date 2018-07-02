@@ -30,7 +30,8 @@ class ExampleETKModule(ETKModule):
             names = doc.extract(self.name_extractor, d)
             p.store(names, "members")
 
-        doc.kg.add_doc_value("developer", "projects[*].members[*]")
+        doc.kg.add_value("developer", json_path="projects[*].members[*]")
+        return list()
 
 if __name__ == "__main__":
 
@@ -51,6 +52,6 @@ if __name__ == "__main__":
     etk = ETK(kg_schema=kg_schema, modules=ExampleETKModule)
     doc = etk.create_document(sample_input)
 
-    doc, _ = etk.process_ems(doc)
+    docs = etk.process_ems(doc)
 
-    print(json.dumps(doc.kg.value, indent=2))
+    print(json.dumps(docs[0].kg.value, indent=2))

@@ -25,11 +25,11 @@ class AcledModule(ETKModule):
                 # doc.kg.add_doc_value("event_date", "$.{}[*]".format(self.date_extractor.name))
 
                 for extraction in extractions:
-                    doc.kg.add_value("event_date", extraction.value)
+                    doc.kg.add_value("event_date", value=extraction.value)
 
             # for segment in doc.select_segments(jsonpath='$.notes'):
             #     doc.kg.add_value("description", segment.value)
-            doc.kg.add_doc_value("description", '$.notes')
+            doc.kg.add_value("description", json_path='$.notes')
 
     def document_selector(self, doc) -> bool:
         """
@@ -50,9 +50,8 @@ if __name__ == "__main__":
                       heading_row=1)
 
     data_set = 'test_data_set_csv'
-    docs = [doc for doc in
-                 cp.tabular_extractor(filename="acled_raw_data.csv", data_set='acled', doc_id_field="data_id")]
+    docs = cp.tabular_extractor(filename="acled_raw_data.csv", dataset='acled', doc_id_field="data_id")
 
-    doc, _ = etk.process_ems(docs[1])
+    results = etk.process_ems(docs[0])
 
-    print(json.dumps(doc.value, indent=2))
+    print(json.dumps(results[0].value, indent=2))
