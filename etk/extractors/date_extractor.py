@@ -309,6 +309,11 @@ class DateExtractor(Extractor):
 
         if formatted and pattern:
             try:
+                for i in range(len(pattern)):
+                    if re.match(r'[a-zA-Z]', formatted[i]) and pattern[i] == '%a':
+                        del formatted[i]
+                        del pattern[i]
+                        break
                 date = datetime.datetime.strptime('-'.join(formatted), '-'.join(pattern))
             except ValueError:
                 try:
@@ -512,3 +517,14 @@ class DateExtractor(Extractor):
             'order': order,
             'pattern': pattern
         } if match else None
+
+
+
+
+
+d = DateExtractor()
+e = d.extract("D-3/8/91",
+                        # additional_formats=["D-%d-%m-%y", "D-%d/%m/%y"],
+                        prefer_language_date_order=None,
+                        use_default_formats=True)
+print(e[0].value)
