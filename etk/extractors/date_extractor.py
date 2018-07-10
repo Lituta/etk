@@ -517,14 +517,3 @@ class DateExtractor(Extractor):
             'order': order,
             'pattern': pattern
         } if match else None
-
-
-
-
-
-d = DateExtractor()
-e = d.extract("D-3/8/91",
-                        # additional_formats=["D-%d-%m-%y", "D-%d/%m/%y"],
-                        prefer_language_date_order=None,
-                        use_default_formats=True)
-print(e[0].value)
